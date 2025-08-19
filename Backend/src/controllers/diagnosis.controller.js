@@ -10,12 +10,11 @@ import mongoose from 'mongoose';
 import axios from 'axios';
 import fs from 'fs';
 import FormData from 'form-data';
-import { ApiError } from '../utils/ApiError.js';
-import { ApiResponse } from '../utils/ApiResponse.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
+
+
 
 // Existing symptom analysis
-export const analyzeSymptoms = asyncHandler(async (req, res) => {
+export const analyzeSymptoms1 = asyncHandler(async (req, res) => {
     const { symptoms } = req.body;
     
     if (!symptoms || symptoms.length === 0) {

@@ -31,15 +31,15 @@ router.get("/", requireRole(['doctor']), getDiagnoses);
 router.get("/:diagnosisId", requireRole(['doctor']), getDiagnosisById);
 
 router.patch("/:diagnosisId/status", requireRole(['doctor']), updateDiagnosisStatus);
-import { Router } from "express";
+//import { Router } from "express";
 import { 
-    analyzeSymptoms,
+    analyzeSymptoms1,
     analyzeChestXray,
     createComprehensiveDiagnosis,
     checkMLServicesHealth
 } from "../controllers/diagnosis.controller.js";
-import { upload } from "../middlewares/multer.middleware.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+//import { upload } from "../middlewares/multer.middleware.js";
+//import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 
 
@@ -50,7 +50,7 @@ router.get("/health", checkMLServicesHealth);
 router.post(
     "/analyze-symptoms",
     verifyJWT,
-    analyzeSymptoms
+    analyzeSymptoms1
 );
 
 // Chest X-ray analysis
