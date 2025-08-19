@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import api from "@/lib/api"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ export default function PneumoniaDetectionPage() {
   })
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [error, setError] = useState("")
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -43,33 +45,33 @@ export default function PneumoniaDetectionPage() {
   }
 
   const handleAnalyze = async () => {
-    if (!selectedFile || !patientInfo.name) return
+    if (!selectedFile) return
 
     setIsAnalyzing(true)
+    setError("")
+    setAnalysisResult(null)
 
-    // Simulate AI analysis
-    setTimeout(() => {
-      setAnalysisResult({
-        prediction: "Pneumonia Detected",
-        confidence: 92.3,
-        severity: "Moderate",
-        findings: [
-          "Consolidation in right lower lobe",
-          "Increased opacity in lung fields",
-          "Air bronchograms present",
-          "No pleural effusion detected",
-        ],
-        recommendations: [
-          "Immediate antibiotic treatment recommended",
-          "Follow-up chest X-ray in 48-72 hours",
-          "Monitor oxygen saturation",
-          "Consider hospitalization if symptoms worsen",
-        ],
-        riskFactors: ["Age over 65", "Chronic respiratory condition"],
-        nextSteps: "Consult with pulmonologist for treatment plan",
+    try {
+      const fd = new FormData()
+      fd.append("medicalImage", selectedFile)
+      // Optional metadata (backend currently ignores these, but safe to send)
+      if (patientInfo.name) fd.append("patientName", patientInfo.name)
+      if (patientInfo.age) fd.append("age", patientInfo.age)
+      if (patientInfo.symptoms) fd.append("symptoms", patientInfo.symptoms)
+
+      const resp = await api.post("/api/v1/diagnoses/image-analysis", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
       })
+
+      // Backend returns ApiResponse -> { data: { file, results, message } }
+      const data = resp?.data?.data
+      setAnalysisResult(data)
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.response?.data?.error || "Analysis failed"
+      setError(msg)
+    } finally {
       setIsAnalyzing(false)
-    }, 3000)
+    }
   }
 
   const resetAnalysis = () => {
@@ -150,7 +152,7 @@ export default function PneumoniaDetectionPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="patientName">Patient Name *</Label>
+                  <Label htmlFor="patientName">Patient Name</Label>
                   <Input
                     id="patientName"
                     placeholder="Enter patient name"
@@ -177,9 +179,14 @@ export default function PneumoniaDetectionPage() {
                     rows={4}
                   />
                 </div>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
                 <Button
                   onClick={handleAnalyze}
-                  disabled={!selectedFile || !patientInfo.name || isAnalyzing}
+                  disabled={!selectedFile || isAnalyzing}
                   className="w-full"
                 >
                   {isAnalyzing ? (
@@ -207,20 +214,24 @@ export default function PneumoniaDetectionPage() {
                   <div className="flex items-center gap-4">
                     <div
                       className={`rounded-full p-3 ${
-                        analysisResult.prediction.includes("Detected") ? "bg-accent" : "bg-primary"
+                        (analysisResult?.prediction?.diagnosis || "").toUpperCase() === "PNEUMONIA" ? "bg-accent" : "bg-primary"
                       }`}
                     >
-                      {analysisResult.prediction.includes("Detected") ? (
+                      {(analysisResult?.prediction?.diagnosis || "").toUpperCase() === "PNEUMONIA" ? (
                         <AlertTriangle className="h-6 w-6 text-white" />
                       ) : (
                         <CheckCircle className="h-6 w-6 text-white" />
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-serif font-bold">{analysisResult.prediction}</h2>
-                      <p className="text-muted-foreground">
-                        Confidence: {analysisResult.confidence}% | Severity: {analysisResult.severity}
-                      </p>
+                      <h2 className="text-2xl font-serif font-bold">
+                        {analysisResult?.prediction?.diagnosis || "Analysis Result"}
+                      </h2>
+                      {typeof analysisResult?.prediction?.confidence === "number" && (
+                        <p className="text-muted-foreground">
+                          Confidence: {Math.round(analysisResult.prediction.confidence)}%
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -234,80 +245,87 @@ export default function PneumoniaDetectionPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="mt-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Confidence Level</span>
-                    <span>{analysisResult.confidence}%</span>
+                {typeof analysisResult?.prediction?.confidence === "number" && (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>Confidence Level</span>
+                      <span>{Math.round(analysisResult.prediction.confidence)}%</span>
+                    </div>
+                    <Progress value={Math.round(analysisResult.prediction.confidence)} className="h-2" />
                   </div>
-                  <Progress value={analysisResult.confidence} className="h-2" />
-                </div>
+                )}
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Key Findings */}
+            {analysisResult?.prediction?.probabilities && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Key Findings</CardTitle>
-                  <CardDescription>AI-identified radiological findings</CardDescription>
+                  <CardTitle>Detected Conditions</CardTitle>
+                  <CardDescription>Model probabilities</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3">
-                    {analysisResult.findings.map((finding: string, index: number) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                        <span className="text-sm">{finding}</span>
-                      </li>
-                    ))}
+                    <li className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Pneumonia</span>
+                      <span>{Math.round(analysisResult.prediction.probabilities.pneumonia)}%</span>
+                    </li>
+                    <li className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Normal</span>
+                      <span>{Math.round(analysisResult.prediction.probabilities.normal)}%</span>
+                    </li>
                   </ul>
                 </CardContent>
               </Card>
+            )}
 
-              {/* Recommendations */}
+            {analysisResult?.medical_advice && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Clinical Recommendations</CardTitle>
-                  <CardDescription>Suggested treatment and follow-up actions</CardDescription>
+                  <CardTitle>Medical Advice</CardTitle>
+                  <CardDescription>
+                    Severity: {analysisResult.medical_advice.severity}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-3">
-                    {analysisResult.recommendations.map((rec: string, index: number) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                        <span className="text-sm">{rec}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {analysisResult.medical_advice.message && (
+                    <p className="text-sm mb-3">{analysisResult.medical_advice.message}</p>
+                  )}
+                  {Array.isArray(analysisResult.medical_advice.recommendations) && (
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      {analysisResult.medical_advice.recommendations.map((rec: string, idx: number) => (
+                        <li key={idx}>{rec}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {analysisResult.medical_advice.next_steps && (
+                    <p className="text-sm mt-3 font-medium">Next steps: {analysisResult.medical_advice.next_steps}</p>
+                  )}
                 </CardContent>
               </Card>
-            </div>
+            )}
 
-            {/* Additional Information */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Risk Factors</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {analysisResult.riskFactors.map((factor: string, index: number) => (
-                      <Badge key={index} variant="secondary">
-                        {factor}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Next Steps</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm">{analysisResult.nextSteps}</p>
-                </CardContent>
-              </Card>
-            </div>
+            {false && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Risk Factors</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {/* Reserved for extended outputs */}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Next Steps</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm">Based on the model output, consider clinical correlation.</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-4">

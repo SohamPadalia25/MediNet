@@ -9,8 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Stethoscope, ArrowLeft } from "lucide-react"
+import { useRouter } from "next/navigation"
+import api from "@/lib/api"
+import { saveAuth } from "@/lib/auth"
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -22,19 +26,25 @@ export default function LoginPage() {
     setIsLoading(true)
     setError("")
 
-    // Simulate authentication
-    setTimeout(() => {
-      if (email === "doctor@medinet.com" && password === "password") {
-        window.location.href = "/dashboard/doctor"
-      } else if (email === "patient@medinet.com" && password === "password") {
-        window.location.href = "/dashboard/patient"
-      } else if (email === "admin@medinet.com" && password === "password") {
-        window.location.href = "/dashboard/admin"
-      } else {
-        setError("Invalid email or password")
+    try {
+      const resp = await api.post("/api/v1/users/login", { email, password })
+      const data = resp?.data?.data
+      if (!data?.user || !data?.accessToken || !data?.refreshToken) {
+        throw new Error("Invalid login response")
       }
+
+      saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user })
+
+      const role = data.user.role
+      if (role === "doctor") router.push("/dashboard/doctor")
+      else if (role === "admin") router.push("/dashboard/admin")
+      else router.push("/dashboard/patient")
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message || err?.response?.data?.error
+      setError(apiMessage || "Invalid email or password")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (

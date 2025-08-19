@@ -17,13 +17,13 @@ router.post("/symptom-analysis", requireRole(['doctor']), createSymptomAnalysis)
 
 //router.post("/image-analysis", requireRole(['doctor']), upload.single([{ name: "medicalImage", maxCount: 1 }]), createImageAnalysis);
 
-// For single file "medicalImage"
+// For single file "medicalImage" (wire to ML-backed analyzer)
 router.post(
   "/image-analysis",
   verifyJWT,
-  requireRole(['doctor']), // or adjust if not using role middleware
-  upload.single("medicalImage"), // <---- Accept one file under field medicalImage
-  createImageAnalysis
+  requireRole(['doctor']),
+  upload.single("medicalImage"),
+  analyzeChestXray
 );
 
 router.get("/", requireRole(['doctor']), getDiagnoses);

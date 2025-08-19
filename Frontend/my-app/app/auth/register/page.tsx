@@ -3,29 +3,29 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff, Stethoscope, ArrowLeft, CheckCircle } from "lucide-react"
 
+import api from "@/lib/api"
+
 export default function RegisterPage() {
+  const router = useRouter()
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     password: "",
-    confirmPassword: "",
-    userType: "",
+    userType: "patient",
     licenseNumber: "",
     specialization: "",
-    agreeToTerms: false,
   })
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
@@ -34,22 +34,39 @@ export default function RegisterPage() {
     setIsLoading(true)
     setError("")
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
-      setIsLoading(false)
-      return
-    }
+    // Minimal validation: email and password are required via input attributes
 
-    if (!formData.agreeToTerms) {
-      setError("Please agree to the terms and conditions")
-      setIsLoading(false)
-      return
-    }
+    const derivedName = `${formData.firstName} ${formData.lastName}`.trim()
+    const fullname = derivedName || (formData.email.split("@")[0] || "user")
+    const baseUsername = (formData.email.split("@")[0] || "").toLowerCase()
+    const safeBaseUsername = baseUsername.replace(/[^a-z0-9._-]/gi, "")
+    const fallbackUsername = `${formData.firstName}${formData.lastName}`.replace(/\s+/g, "").toLowerCase() || "user"
+    const username = safeBaseUsername || fallbackUsername
+    const role = formData.userType || "patient"
+    const profile = role === "doctor" ? { licenseNumber: formData.licenseNumber, specialization: formData.specialization } : {}
 
-    // Simulate registration
-    setTimeout(() => {
-      window.location.href = "/auth/login"
-    }, 1500)
+    try {
+      const fd = new FormData()
+      fd.append("fullname", fullname)
+      fd.append("username", username)
+      fd.append("email", formData.email)
+      fd.append("password", formData.password)
+      fd.append("role", role)
+      if (role === "doctor") {
+        if (profile.licenseNumber) fd.append("profile[licenseNumber]", profile.licenseNumber)
+        if (profile.specialization) fd.append("profile[specialization]", profile.specialization)
+      }
+
+      await api.post("/api/v1/users/register", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+
+      router.push("/auth/login")
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message || err?.response?.data?.error
+      setError(apiMessage || "Registration failed")
+      setIsLoading(false)
+    }
   }
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -114,7 +131,6 @@ export default function RegisterPage() {
                     value={formData.firstName}
                     onChange={(e) => handleInputChange("firstName", e.target.value)}
                     className="h-11"
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -125,7 +141,6 @@ export default function RegisterPage() {
                     value={formData.lastName}
                     onChange={(e) => handleInputChange("lastName", e.target.value)}
                     className="h-11"
-                    required
                   />
                 </div>
               </div>
@@ -241,47 +256,7 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    className="h-11 pr-12"
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-11 px-3 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="terms"
-                  checked={formData.agreeToTerms}
-                  onCheckedChange={(checked) => handleInputChange("agreeToTerms", checked as boolean)}
-                />
-                <Label htmlFor="terms" className="text-sm leading-relaxed">
-                  I agree to the{" "}
-                  <Link href="#" className="text-primary hover:underline">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="#" className="text-primary hover:underline">
-                    Privacy Policy
-                  </Link>
-                </Label>
-              </div>
+              
 
               <Button type="submit" className="w-full h-12 text-lg" disabled={isLoading}>
                 {isLoading ? (
