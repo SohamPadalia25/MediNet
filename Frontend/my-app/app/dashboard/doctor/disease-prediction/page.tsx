@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import api from "@/lib/api"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,17 +11,19 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Brain, Search, AlertCircle, Stethoscope, Activity, Heart, Plus, Minus } from "lucide-react"
+import { Brain, Search, AlertCircle, Stethoscope, Activity, Heart, Plus, Minus, X, Check } from "lucide-react"
 
 export default function DiseasePrediction() {
   const [symptoms, setSymptoms] = useState("")
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
+  const [quickSymptom, setQuickSymptom] = useState("")
   const [patientAge, setPatientAge] = useState("")
   const [patientGender, setPatientGender] = useState("")
   const [medicalHistory, setMedicalHistory] = useState("")
   const [symptomSeverity, setSymptomSeverity] = useState<{ [key: string]: number }>({})
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [predictions, setPredictions] = useState<any[]>([])
+  const [error, setError] = useState("")
 
   const commonSymptoms = [
     "Fever",
@@ -64,6 +67,30 @@ export default function DiseasePrediction() {
     })
   }
 
+  const normalizeForAPI = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "_")
+
+  const addQuickSymptom = () => {
+    const raw = quickSymptom.trim()
+    if (!raw) return
+    const parts = raw.split(/[\,\n]/).map((p) => p.trim()).filter(Boolean)
+    if (parts.length === 0) return
+    setSelectedSymptoms((prev) => {
+      const set = new Set(prev)
+      parts.forEach((p) => set.add(p))
+      return Array.from(set)
+    })
+    setQuickSymptom("")
+  }
+
+  const removeSymptom = (symptom: string) => {
+    setSelectedSymptoms((prev) => prev.filter((s) => s !== symptom))
+    setSymptomSeverity((prev) => {
+      const copy = { ...prev }
+      delete copy[symptom]
+      return copy
+    })
+  }
+
   const adjustSeverity = (symptom: string, change: number) => {
     setSymptomSeverity((prev) => ({
       ...prev,
@@ -73,54 +100,49 @@ export default function DiseasePrediction() {
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true)
+    setError("")
+    setPredictions([])
 
-    // Simulate AI analysis
-    setTimeout(() => {
-      const mockPredictions = [
+    try {
+      const chosen = selectedSymptoms.length
+        ? selectedSymptoms
+        : symptoms
+            .split(/[,\n]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+
+      if (chosen.length === 0) {
+        setIsAnalyzing(false)
+        return
+      }
+
+      const apiSymptoms = chosen.map(normalizeForAPI)
+      const resp = await api.post("/api/v1/diagnoses/analyze-symptoms", {
+        symptoms: apiSymptoms,
+      })
+      const data = resp?.data?.data
+      const raw = String(data?.predicted_disease || "")
+      const disease = raw.replace(/^[\[\(\"']+|[\]\)\"']+$/g, "").trim()
+
+      setPredictions([
         {
-          disease: "Viral Upper Respiratory Infection",
-          confidence: 87,
-          severity: "Mild",
-          description: "Common cold or flu-like illness affecting the upper respiratory tract",
-          recommendations: [
-            "Rest and adequate hydration",
-            "Over-the-counter pain relievers if needed",
-            "Monitor symptoms for 7-10 days",
-            "Seek medical attention if symptoms worsen",
-          ],
-          urgency: "low",
-        },
-        {
-          disease: "Bacterial Pneumonia",
-          confidence: 23,
+          disease: disease || "Predicted Disease",
+          confidence: 80,
           severity: "Moderate",
-          description: "Infection of the lungs caused by bacteria",
+          description: "Predicted by SVM symptom model",
           recommendations: [
-            "Chest X-ray recommended",
-            "Blood tests to confirm diagnosis",
-            "Antibiotic treatment may be required",
-            "Close monitoring of respiratory status",
+            "Clinical correlation recommended",
+            "Consider relevant diagnostics",
           ],
           urgency: "medium",
         },
-        {
-          disease: "Gastroenteritis",
-          confidence: 15,
-          severity: "Mild",
-          description: "Inflammation of the stomach and intestines",
-          recommendations: [
-            "Maintain hydration with clear fluids",
-            "BRAT diet (Bananas, Rice, Applesauce, Toast)",
-            "Avoid dairy and fatty foods",
-            "Monitor for dehydration signs",
-          ],
-          urgency: "low",
-        },
-      ]
-
-      setPredictions(mockPredictions)
+      ])
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.response?.data?.error || "Prediction failed"
+      setError(msg)
+    } finally {
       setIsAnalyzing(false)
-    }, 3000)
+    }
   }
 
   const getUrgencyColor = (urgency: string) => {
@@ -147,9 +169,7 @@ export default function DiseasePrediction() {
             </div>
             <h1 className="text-3xl font-serif font-black text-foreground">AI Disease Prediction</h1>
           </div>
-          <p className="text-muted-foreground">
-            Enter patient symptoms to get AI-powered disease predictions and clinical recommendations.
-          </p>
+          <p className="text-muted-foreground">Select symptoms below and run prediction.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -164,108 +184,102 @@ export default function DiseasePrediction() {
                 <CardDescription>Provide patient details and select relevant symptoms</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 p-6">
-                {/* Patient Demographics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="age">Patient Age</Label>
+                {/* Quick Add Symptoms */}
+                <div className="space-y-3">
+                  <Label>Quick Add Symptoms</Label>
+                  <div className="flex gap-2 relative">
                     <Input
-                      id="age"
-                      type="number"
-                      placeholder="Enter age"
-                      value={patientAge}
-                      onChange={(e) => setPatientAge(e.target.value)}
+                      placeholder="Type a symptom and press Enter (e.g., fever, chest pain)"
+                      value={quickSymptom}
+                      onChange={(e) => setQuickSymptom(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addQuickSymptom()
+                        }
+                      }}
                       className="border-2 focus:border-primary"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select value={patientGender} onValueChange={setPatientGender}>
-                      <SelectTrigger className="border-2 focus:border-primary">
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Medical History */}
-                <div className="space-y-2">
-                  <Label htmlFor="history">Medical History & Risk Factors</Label>
-                  <Textarea
-                    id="history"
-                    placeholder="Enter relevant medical history, chronic conditions, medications, allergies, family history..."
-                    value={medicalHistory}
-                    onChange={(e) => setMedicalHistory(e.target.value)}
-                    className="min-h-20 border-2 focus:border-primary"
-                  />
-                </div>
-
-                {/* Symptom Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="symptoms">Detailed Symptom Description</Label>
-                  <Textarea
-                    id="symptoms"
-                    placeholder="Describe the patient's symptoms in detail, including duration, severity, and any relevant context..."
-                    value={symptoms}
-                    onChange={(e) => setSymptoms(e.target.value)}
-                    className="min-h-24 border-2 focus:border-primary"
-                  />
-                </div>
-
-                {/* Common Symptoms Selection with Severity */}
-                <div className="space-y-3">
-                  <Label>Symptoms & Severity (1-10 scale)</Label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {commonSymptoms.map((symptom) => (
-                      <div key={symptom} className="flex items-center gap-3 p-3 border-2 rounded-lg">
-                        <Button
-                          variant={selectedSymptoms.includes(symptom) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleSymptomToggle(symptom)}
-                          className={`flex-1 justify-start ${
-                            selectedSymptoms.includes(symptom)
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-background hover:bg-muted"
-                          }`}
-                        >
-                          {symptom}
-                        </Button>
-                        {selectedSymptoms.includes(symptom) && (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => adjustSeverity(symptom, -1)}
-                              className="h-8 w-8 p-0"
+                    <Button type="button" variant="secondary" onClick={addQuickSymptom}>
+                      Add
+                    </Button>
+                    {quickSymptom.trim().length > 0 && (
+                      <div className="absolute left-0 right-0 top-11 z-10 bg-background border rounded-md shadow-md max-h-56 overflow-auto">
+                        {commonSymptoms
+                          .filter(
+                            (s) =>
+                              s.toLowerCase().includes(quickSymptom.toLowerCase()) &&
+                              !selectedSymptoms.includes(s)
+                          )
+                          .slice(0, 8)
+                          .map((s) => (
+                            <button
+                              type="button"
+                              key={s}
+                              onClick={() => {
+                                setSelectedSymptoms((prev) => (prev.includes(s) ? prev : [...prev, s]))
+                                setQuickSymptom("")
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2"
                             >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{symptomSeverity[symptom] || 5}</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => adjustSeverity(symptom, 1)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
+                              <Check className="h-3 w-3 text-primary" /> {s}
+                            </button>
+                          ))}
                       </div>
+                    )}
+                  </div>
+                  {selectedSymptoms.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedSymptoms.map((s) => (
+                        <Badge key={s} variant="secondary" className="flex items-center gap-1">
+                          {s}
+                          <button
+                            type="button"
+                            className="ml-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => removeSymptom(s)}
+                            aria-label={`Remove ${s}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Common Symptoms - compact buttons */}
+                <div className="space-y-3">
+                  <Label>Common Symptoms</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {commonSymptoms.map((symptom) => (
+                      <Button
+                        key={symptom}
+                        variant={selectedSymptoms.includes(symptom) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleSymptomToggle(symptom)}
+                        className={`h-8 px-2 text-xs truncate ${
+                          selectedSymptoms.includes(symptom)
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background hover:bg-muted"
+                        }`}
+                        title={symptom}
+                      >
+                        {symptom}
+                      </Button>
                     ))}
                   </div>
                 </div>
 
                 {/* Analyze Button */}
-                <Button
-                  onClick={handleAnalyze}
-                  disabled={isAnalyzing || (!symptoms.trim() && selectedSymptoms.length === 0)}
-                  className="w-full h-12 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg text-lg font-semibold"
-                >
+                {error && (
+                  <div className="text-sm text-red-600">{error}</div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAnalyze}
+                    disabled={isAnalyzing || selectedSymptoms.length === 0}
+                    className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg text-lg font-semibold"
+                  >
                   {isAnalyzing ? (
                     <>
                       <Brain className="h-5 w-5 mr-2 animate-pulse" />
@@ -277,7 +291,21 @@ export default function DiseasePrediction() {
                       Predict Diseases
                     </>
                   )}
-                </Button>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedSymptoms([])
+                      setQuickSymptom("")
+                      setError("")
+                      setPredictions([])
+                    }}
+                    className="h-12"
+                  >
+                    Clear
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
