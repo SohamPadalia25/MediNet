@@ -1,9 +1,20 @@
-import { DashboardLayout } from "@/components/dashboard-layout"
+"use client"
+
+import { DynamicDashboardLayout } from "@/components/dynamic-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { 
+  Users, 
+  Brain, 
+  FileText, 
+  Calendar, 
+  BarChart3,
+  Activity,
+  Stethoscope
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Users, Calendar, Brain, TrendingUp, Clock, CheckCircle, Activity, Search, Pill } from "lucide-react"
+import {  TrendingUp, Clock, CheckCircle,  Search, Pill } from "lucide-react"
 import Link from "next/link"
 
 export default function DoctorDashboard() {
@@ -84,12 +95,14 @@ export default function DoctorDashboard() {
   ]
 
   return (
-    <DashboardLayout userType="doctor" userName="Dr. James Wilson" userEmail="james.wilson@medinet.com">
+    <DynamicDashboardLayout requiredRole="doctor">
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-serif font-black text-foreground">Doctor Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, Dr. Wilson. Here's your medical practice overview.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-serif font-black text-foreground">Doctor Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -101,7 +114,6 @@ export default function DoctorDashboard() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
                     <p className="text-2xl font-bold">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.change}</p>
                   </div>
                   <stat.icon className={`h-8 w-8 ${stat.color}`} />
                 </div>
@@ -227,6 +239,6 @@ export default function DoctorDashboard() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </DynamicDashboardLayout>
   )
 }

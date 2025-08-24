@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import api from "@/lib/api"
-import { DashboardLayout } from "@/components/dashboard-layout"
+import { DynamicDashboardLayout } from "@/components/dynamic-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -81,7 +81,7 @@ export default function PneumoniaDetectionPage() {
   }
 
   return (
-    <DashboardLayout userType="doctor" userName="Dr. James Wilson" userEmail="james.wilson@medinet.com">
+    <DynamicDashboardLayout requiredRole="doctor">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -354,6 +354,6 @@ export default function PneumoniaDetectionPage() {
           </Card>
         )}
       </div>
-    </DashboardLayout>
+    </DynamicDashboardLayout>
   )
 }

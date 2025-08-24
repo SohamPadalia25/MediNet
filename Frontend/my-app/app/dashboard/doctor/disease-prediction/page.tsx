@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Brain, Search, AlertCircle, Stethoscope, Activity, Heart, Plus, Minus, X, Check } from "lucide-react"
+import { DynamicDashboardLayout } from "@/components/dynamic-dashboard-layout"
 
 export default function DiseasePrediction() {
   const [symptoms, setSymptoms] = useState("")
@@ -159,7 +160,7 @@ export default function DiseasePrediction() {
   }
 
   return (
-    <DashboardLayout userType="doctor" userName="Dr. James Wilson" userEmail="james.wilson@medinet.com">
+    <DynamicDashboardLayout requiredRole="doctor">
       <div className="space-y-8">
         {/* Header */}
         <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 rounded-xl border">
@@ -407,6 +408,6 @@ export default function DiseasePrediction() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </DynamicDashboardLayout>
   )
 }

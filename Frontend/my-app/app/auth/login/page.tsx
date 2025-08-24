@@ -35,10 +35,7 @@ export default function LoginPage() {
 
       saveAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user })
 
-      const role = data.user.role
-      if (role === "doctor") router.push("/dashboard/doctor")
-      else if (role === "admin") router.push("/dashboard/admin")
-      else router.push("/dashboard/patient")
+      router.push("/dashboard")
     } catch (err: any) {
       const apiMessage = err?.response?.data?.message || err?.response?.data?.error
       setError(apiMessage || "Invalid email or password")

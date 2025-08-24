@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -31,6 +32,7 @@ import {
   Clock,
   Search,
 } from "lucide-react"
+import { clearAuth } from "@/lib/auth"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -41,6 +43,12 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, userType, userName, userEmail }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const router = useRouter()
+
+  const handleLogout = () => {
+    clearAuth()
+    router.push("/auth/login")
+  }
 
   const getNavigationItems = () => {
     switch (userType) {
@@ -137,7 +145,7 @@ export function DashboardLayout({ children, userType, userName, userEmail }: Das
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </DropdownMenuItem>
