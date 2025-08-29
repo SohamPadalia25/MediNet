@@ -18,10 +18,16 @@ app.use(cookieParser());
 import userRouter from "./routes/user.routes.js";
 import patientRouter from "./routes/patient.routes.js";
 import diagnosisRouter from "./routes/diagnosis.routes.js";
+import prescriptionRouter from "./routes/prescription.routes.js";
+import appointmentRouter from "./routes/appointment.routes.js";
+import reportRouter from "./routes/report.routes.js";
 
 // Route declarations
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/patients", patientRouter);
 app.use("/api/v1/diagnoses", diagnosisRouter);
+app.use("/api/v1/prescriptions", prescriptionRouter);
+app.use("/api/v1/appointments", appointmentRouter);
+app.use("/api/v1/reports", reportRouter);
 
 export default app;

@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { DashboardLayout } from "@/components/dashboard-layout"
+import { useState, useEffect } from "react"
+import { DynamicDashboardLayout } from "@/components/dynamic-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Calendar,
   Clock,
@@ -20,88 +23,198 @@ import {
   CheckCircle,
   AlertTriangle,
   X,
+  Loader2,
+  User,
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { api } from "@/lib/api"
+
+interface Appointment {
+  _id: string
+  patientId: {
+    _id: string
+    fullname: string
+    email: string
+  }
+  doctorId: {
+    _id: string
+    fullname: string
+  }
+  appointmentDate: string
+  appointmentTime: string
+  appointmentType: string
+  status: string
+  reason: string
+  symptoms: string[]
+  notes?: string
+  duration: number
+  location: string
+  createdAt: string
+}
+
+interface Patient {
+  _id: string
+  fullname: string
+  email: string
+}
+
+const APPOINTMENTS_DUMMY: Appointment[] = [
+  {
+    _id: "apt-1",
+    patientId: { _id: "p1", fullname: "Sarah Johnson", email: "sarah@example.com" },
+    doctorId: { _id: "d1", fullname: "Dr. Demo" },
+    appointmentDate: new Date().toISOString(),
+    appointmentTime: "10:00",
+    appointmentType: "consultation",
+    status: "confirmed",
+    reason: "Follow-up",
+    symptoms: ["cough"],
+    duration: 30,
+    location: "Room 101",
+    createdAt: new Date().toISOString(),
+  }
+]
+
+const PATIENTS_DUMMY: Patient[] = [
+  { _id: "p1", fullname: "Sarah Johnson", email: "sarah@example.com" },
+  { _id: "p2", fullname: "Michael Chen", email: "michael@example.com" },
+]
 
 export default function AppointmentsPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("week")
   const [filterStatus, setFilterStatus] = useState("all")
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    patientId: "",
+    appointmentDate: "",
+    appointmentTime: "",
+    appointmentType: "consultation",
+    reason: "",
+    symptoms: [""],
+    notes: "",
+    duration: 30,
+    location: "Clinic"
+  })
 
-  const appointments = [
-    {
-      id: "1",
-      patient: "Sarah Johnson",
-      patientAvatar: "/placeholder.svg?height=32&width=32",
-      date: "2024-03-20",
-      time: "09:00",
-      duration: 30,
-      type: "Follow-up",
-      status: "confirmed",
-      location: "Room 101",
-      mode: "in-person",
-      notes: "Pneumonia treatment follow-up",
-      phone: "(555) 123-4567",
-    },
-    {
-      id: "2",
-      patient: "Michael Chen",
-      patientAvatar: "/placeholder.svg?height=32&width=32",
-      date: "2024-03-20",
-      time: "10:30",
-      duration: 45,
-      type: "Consultation",
-      status: "pending",
-      location: "Room 102",
-      mode: "in-person",
-      notes: "Skin lesion consultation",
-      phone: "(555) 234-5678",
-    },
-    {
-      id: "3",
-      patient: "Emily Davis",
-      patientAvatar: "/placeholder.svg?height=32&width=32",
-      date: "2024-03-20",
-      time: "14:00",
-      duration: 30,
-      type: "Telemedicine",
-      status: "confirmed",
-      location: "Virtual",
-      mode: "video",
-      notes: "Routine check-in",
-      phone: "(555) 345-6789",
-    },
-    {
-      id: "4",
-      patient: "Robert Brown",
-      patientAvatar: "/placeholder.svg?height=32&width=32",
-      date: "2024-03-21",
-      time: "11:00",
-      duration: 60,
-      type: "AI Diagnosis Review",
-      status: "confirmed",
-      location: "Room 103",
-      mode: "in-person",
-      notes: "Review AI diagnosis results",
-      phone: "(555) 456-7890",
-    },
-    {
-      id: "5",
-      patient: "Lisa Wilson",
-      patientAvatar: "/placeholder.svg?height=32&width=32",
-      date: "2024-03-21",
-      time: "15:30",
-      duration: 30,
-      type: "Follow-up",
-      status: "cancelled",
-      location: "Room 101",
-      mode: "in-person",
-      notes: "Patient cancelled - reschedule needed",
-      phone: "(555) 567-8901",
-    },
-  ]
+  // Fetch appointments
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true)
+      const response = await api.get("/appointments/doctor")
+      const list: Appointment[] = response?.data?.data?.appointments || []
+      setAppointments(list.length ? list : APPOINTMENTS_DUMMY)
+    } catch (error: any) {
+      setAppointments(APPOINTMENTS_DUMMY)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const todayAppointments = appointments.filter((apt) => apt.date === "2024-03-20")
-  const upcomingAppointments = appointments.filter((apt) => new Date(apt.date) > new Date("2024-03-20"))
+  // Fetch patients
+  const fetchPatients = async () => {
+    try {
+      const response = await api.get("/users", { params: { role: "patient", limit: 100 } })
+      const list: Patient[] = response?.data?.data?.users || []
+      setPatients(list.length ? list : PATIENTS_DUMMY)
+    } catch (error: any) {
+      setPatients(PATIENTS_DUMMY)
+    }
+  }
+
+  useEffect(() => {
+    fetchAppointments()
+    fetchPatients()
+  }, [])
+
+  // Create appointment
+  const handleCreateAppointment = async () => {
+    try {
+      setCreating(true)
+      const appointmentData = {
+        ...formData,
+        symptoms: formData.symptoms.filter(s => s.trim() !== "")
+      }
+      await api.post("/appointments", appointmentData)
+      setIsNewAppointmentOpen(false)
+      resetForm()
+      fetchAppointments()
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Failed to create appointment")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Update appointment status
+  const handleStatusUpdate = async (appointmentId: string, status: string) => {
+    try {
+      await api.patch(`/appointments/${appointmentId}/status`, { status })
+      fetchAppointments()
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Failed to update appointment status")
+    }
+  }
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      patientId: "",
+      appointmentDate: "",
+      appointmentTime: "",
+      appointmentType: "consultation",
+      reason: "",
+      symptoms: [""],
+      notes: "",
+      duration: 30,
+      location: "Clinic"
+    })
+  }
+
+  // Add symptom field
+  const addSymptom = () => {
+    setFormData(prev => ({
+      ...prev,
+      symptoms: [...prev.symptoms, ""]
+    }))
+  }
+
+  // Remove symptom field
+  const removeSymptom = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      symptoms: prev.symptoms.filter((_, i) => i !== index)
+    }))
+  }
+
+  // Update symptom field
+  const updateSymptom = (index: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      symptoms: prev.symptoms.map((symptom, i) => i === index ? value : symptom)
+    }))
+  }
+
+  const todayAppointments = appointments.filter((apt) => 
+    new Date(apt.appointmentDate).toDateString() === new Date().toDateString()
+  )
+  const upcomingAppointments = appointments.filter((apt) => 
+    new Date(apt.appointmentDate) > new Date()
+  )
 
   const stats = [
     { title: "Today's Appointments", value: todayAppointments.length, icon: Calendar, color: "text-primary" },
@@ -114,7 +227,7 @@ export default function AppointmentsPage() {
     },
     {
       title: "Pending",
-      value: appointments.filter((a) => a.status === "pending").length,
+      value: appointments.filter((a) => a.status === "scheduled").length,
       icon: AlertTriangle,
       color: "text-chart-2",
     },
@@ -124,12 +237,16 @@ export default function AppointmentsPage() {
     switch (status) {
       case "confirmed":
         return <Badge variant="default">Confirmed</Badge>
-      case "pending":
-        return <Badge variant="secondary">Pending</Badge>
+      case "scheduled":
+        return <Badge variant="secondary">Scheduled</Badge>
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>
       case "completed":
         return <Badge variant="outline">Completed</Badge>
+      case "in-progress":
+        return <Badge variant="default">In Progress</Badge>
+      case "no-show":
+        return <Badge variant="destructive">No Show</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -146,8 +263,18 @@ export default function AppointmentsPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <DynamicDashboardLayout requiredRole="doctor">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DynamicDashboardLayout>
+    )
+  }
+
   return (
-    <DashboardLayout userType="doctor" userName="Dr. James Wilson" userEmail="james.wilson@medinet.com">
+    <DynamicDashboardLayout requiredRole="doctor">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -155,10 +282,153 @@ export default function AppointmentsPage() {
             <h1 className="text-3xl font-serif font-black text-foreground">Appointments</h1>
             <p className="text-muted-foreground">Manage your appointment schedule and patient visits</p>
           </div>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Appointment
-          </Button>
+          <Dialog open={isNewAppointmentOpen} onOpenChange={setIsNewAppointmentOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                New Appointment
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Appointment</DialogTitle>
+                <DialogDescription>Schedule an appointment with a patient</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="patient">Patient *</Label>
+                    <Select value={formData.patientId} onValueChange={(value) => setFormData(prev => ({ ...prev, patientId: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select patient" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {patients.map((patient) => (
+                          <SelectItem key={patient._id} value={patient._id}>
+                            {patient.fullname} ({patient.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="appointmentType">Appointment Type</Label>
+                    <Select value={formData.appointmentType} onValueChange={(value) => setFormData(prev => ({ ...prev, appointmentType: value }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="consultation">Consultation</SelectItem>
+                        <SelectItem value="follow-up">Follow-up</SelectItem>
+                        <SelectItem value="emergency">Emergency</SelectItem>
+                        <SelectItem value="routine-checkup">Routine Checkup</SelectItem>
+                        <SelectItem value="specialist">Specialist</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="appointmentDate">Date *</Label>
+                    <Input 
+                      type="date" 
+                      value={formData.appointmentDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, appointmentDate: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="appointmentTime">Time *</Label>
+                    <Input 
+                      type="time" 
+                      value={formData.appointmentTime}
+                      onChange={(e) => setFormData(prev => ({ ...prev, appointmentTime: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="duration">Duration (min)</Label>
+                    <Input 
+                      type="number" 
+                      value={formData.duration}
+                      onChange={(e) => setFormData(prev => ({ ...prev, duration: parseInt(e.target.value) || 30 }))}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="reason">Reason *</Label>
+                  <Input 
+                    placeholder="Appointment reason" 
+                    value={formData.reason}
+                    onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
+                  />
+                </div>
+                
+                <div>
+                  <Label>Symptoms</Label>
+                  <div className="space-y-2 mt-2">
+                    {formData.symptoms.map((symptom, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input 
+                          placeholder="Enter symptom" 
+                          value={symptom}
+                          onChange={(e) => updateSymptom(index, e.target.value)}
+                        />
+                        {formData.symptoms.length > 1 && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => removeSymptom(index)}
+                            className="px-2"
+                          >
+                            ×
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={addSymptom}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Symptom
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="location">Location</Label>
+                    <Input 
+                      placeholder="Appointment location" 
+                      value={formData.location}
+                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="notes">Notes</Label>
+                    <Input 
+                      placeholder="Additional notes" 
+                      value={formData.notes}
+                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setIsNewAppointmentOpen(false)
+                  resetForm()
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateAppointment}
+                  disabled={creating || !formData.patientId || !formData.appointmentDate || !formData.appointmentTime || !formData.reason}
+                >
+                  {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Create Appointment
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Stats */}
@@ -197,28 +467,28 @@ export default function AppointmentsPage() {
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="confirmed">Confirmed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
                         <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-                <CardDescription>Wednesday, March 20, 2024</CardDescription>
+                <CardDescription>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {todayAppointments
                     .filter((apt) => filterStatus === "all" || apt.status === filterStatus)
                     .map((appointment) => (
-                      <div key={appointment.id} className="flex items-center gap-4 p-4 border rounded-lg">
+                      <div key={appointment._id} className="flex items-center gap-4 p-4 border rounded-lg">
                         <div className="text-center min-w-16">
-                          <p className="text-sm font-medium">{appointment.time}</p>
+                          <p className="text-sm font-medium">{appointment.appointmentTime}</p>
                           <p className="text-xs text-muted-foreground">{appointment.duration}min</p>
                         </div>
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={appointment.patientAvatar || "/placeholder.svg"} />
+                          <AvatarImage src="/placeholder.svg" />
                           <AvatarFallback>
-                            {appointment.patient
+                            {appointment.patientId.fullname
                               .split(" ")
                               .map((n) => n[0])
                               .join("")}
@@ -226,33 +496,33 @@ export default function AppointmentsPage() {
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="font-medium">{appointment.patient}</p>
+                            <p className="font-medium">{appointment.patientId.fullname}</p>
                             {getStatusBadge(appointment.status)}
                           </div>
-                          <p className="text-sm text-muted-foreground mb-1">{appointment.type}</p>
+                          <p className="text-sm text-muted-foreground mb-1">{appointment.appointmentType}</p>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
-                              {getModeIcon(appointment.mode)}
+                              <MapPin className="h-4 w-4" />
                               <span>{appointment.location}</span>
                             </div>
-                            <span>{appointment.phone}</span>
+                            <span>{appointment.patientId.email}</span>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {appointment.status === "pending" && (
+                          {appointment.status === "scheduled" && (
                             <>
-                              <Button size="sm" variant="outline">
+                              <Button size="sm" variant="outline" onClick={() => handleStatusUpdate(appointment._id, "confirmed")}>
                                 <CheckCircle className="h-4 w-4 mr-1" />
                                 Confirm
                               </Button>
-                              <Button size="sm" variant="outline">
+                              <Button size="sm" variant="outline" onClick={() => handleStatusUpdate(appointment._id, "cancelled")}>
                                 <X className="h-4 w-4 mr-1" />
                                 Cancel
                               </Button>
                             </>
                           )}
                           {appointment.status === "confirmed" && (
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleStatusUpdate(appointment._id, "in-progress")}>
                               Start Visit
                             </Button>
                           )}
@@ -282,22 +552,22 @@ export default function AppointmentsPage() {
             <CardContent>
               <div className="space-y-4">
                 {upcomingAppointments.slice(0, 5).map((appointment) => (
-                  <div key={appointment.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                  <div key={appointment._id} className="flex items-center gap-3 p-3 border rounded-lg">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={appointment.patientAvatar || "/placeholder.svg"} />
+                      <AvatarImage src="/placeholder.svg" />
                       <AvatarFallback>
-                        {appointment.patient
+                        {appointment.patientId.fullname
                           .split(" ")
                           .map((n) => n[0])
                           .join("")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{appointment.patient}</p>
-                      <p className="text-xs text-muted-foreground">{appointment.type}</p>
+                      <p className="font-medium text-sm">{appointment.patientId.fullname}</p>
+                      <p className="text-xs text-muted-foreground">{appointment.appointmentType}</p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{appointment.date}</span>
-                        <span>{appointment.time}</span>
+                        <span>{new Date(appointment.appointmentDate).toLocaleDateString()}</span>
+                        <span>{appointment.appointmentTime}</span>
                       </div>
                     </div>
                     {getStatusBadge(appointment.status)}
@@ -373,7 +643,9 @@ export default function AppointmentsPage() {
                 const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i - 6)
                 const isCurrentMonth = date.getMonth() === currentDate.getMonth()
                 const isToday = date.toDateString() === new Date().toDateString()
-                const dayAppointments = appointments.filter((apt) => apt.date === date.toISOString().split("T")[0])
+                const dayAppointments = appointments.filter((apt) => 
+                  new Date(apt.appointmentDate).toDateString() === date.toDateString()
+                )
 
                 return (
                   <div
@@ -386,16 +658,16 @@ export default function AppointmentsPage() {
                     <div className="space-y-1">
                       {dayAppointments.slice(0, 2).map((apt) => (
                         <div
-                          key={apt.id}
+                          key={apt._id}
                           className={`text-xs p-1 rounded text-white ${
                             apt.status === "confirmed"
                               ? "bg-primary"
-                              : apt.status === "pending"
+                              : apt.status === "scheduled"
                                 ? "bg-accent"
                                 : "bg-muted-foreground"
                           }`}
                         >
-                          {apt.time} {apt.patient.split(" ")[0]}
+                          {apt.appointmentTime} {apt.patientId.fullname.split(" ")[0]}
                         </div>
                       ))}
                       {dayAppointments.length > 2 && (
@@ -409,6 +681,6 @@ export default function AppointmentsPage() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </DynamicDashboardLayout>
   )
 }

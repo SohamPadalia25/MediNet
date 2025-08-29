@@ -178,6 +178,39 @@ return res.status(200).json(
 )
 })
 
+// List users with optional role/search and pagination
+ const listUsers = asyncHandler(async (req, res) => {
+  const { role, page = 1, limit = 10, search } = req.query;
+  const numericPage = Math.max(parseInt(page, 10) || 1, 1);
+  const numericLimit = Math.max(parseInt(limit, 10) || 10, 1);
+
+  const query = {};
+  if (role) {
+    query.role = role;
+  }
+  if (search) {
+    const regex = new RegExp(search, 'i');
+    query.$or = [{ fullname: regex }, { email: regex }, { username: regex }];
+  }
+
+  const users = await User.find(query)
+    .select("-password -refreshToken")
+    .sort({ createdAt: -1 })
+    .limit(numericLimit)
+    .skip((numericPage - 1) * numericLimit);
+
+  const total = await User.countDocuments(query);
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      users,
+      total,
+      totalPages: Math.ceil(total / numericLimit),
+      currentPage: numericPage
+    }, "Users fetched successfully")
+  );
+});
+
 
        
-export {loginUser,logoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateUserAccountDetails};
+export {loginUser,logoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateUserAccountDetails, listUsers};

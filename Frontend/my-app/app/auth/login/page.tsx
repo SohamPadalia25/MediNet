@@ -27,7 +27,7 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const resp = await api.post("/api/v1/users/login", { email, password })
+      const resp = await api.post("/users/login", { email, password })
       const data = resp?.data?.data
       if (!data?.user || !data?.accessToken || !data?.refreshToken) {
         throw new Error("Invalid login response")

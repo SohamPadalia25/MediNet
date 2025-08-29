@@ -57,7 +57,7 @@ export default function RegisterPage() {
         if (profile.specialization) fd.append("profile[specialization]", profile.specialization)
       }
 
-      await api.post("/api/v1/users/register", fd, {
+      await api.post("/users/register", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       })
 

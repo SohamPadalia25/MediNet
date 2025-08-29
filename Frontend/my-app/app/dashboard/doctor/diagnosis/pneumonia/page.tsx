@@ -59,7 +59,7 @@ export default function PneumoniaDetectionPage() {
       if (patientInfo.age) fd.append("age", patientInfo.age)
       if (patientInfo.symptoms) fd.append("symptoms", patientInfo.symptoms)
 
-      const resp = await api.post("/api/v1/diagnoses/image-analysis", fd, {
+      const resp = await api.post("/diagnoses/image-analysis", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       })
 

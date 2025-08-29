@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { loginUser, logoutUser, registerUser,refreshAccessToken, changeCurrentPassword, getCurrentUser, updateUserAccountDetails } from "../controllers/user.controller.js";
+import { loginUser, logoutUser, registerUser,refreshAccessToken, changeCurrentPassword, getCurrentUser, updateUserAccountDetails, listUsers } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 const router = Router();
@@ -28,6 +28,8 @@ router.route("/register").post(
 
 router.route("/current-user").get(verifyJWT,getCurrentUser)
 router.route("/update-account").patch(verifyJWT,updateUserAccountDetails)
+// users listing (admin/doctor can browse patients; open demo listing for now without role guard)
+router.route("/").get(verifyJWT, listUsers)
 //router.route("/avatar").patch(verifyJWT,upload.single("avatar"),updateUserAvatar)
 //here verifyJWT middleware will check if the user is logged in or not and then update the avatar of the user
 //router.route("/cover-image").patch(verifyJWT,upload.single("coverImage"),updateUserCoverImage)

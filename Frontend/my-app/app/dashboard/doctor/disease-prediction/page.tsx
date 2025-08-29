@@ -118,7 +118,7 @@ export default function DiseasePrediction() {
       }
 
       const apiSymptoms = chosen.map(normalizeForAPI)
-      const resp = await api.post("/api/v1/diagnoses/analyze-symptoms", {
+      const resp = await api.post("/diagnoses/analyze-symptoms", {
         symptoms: apiSymptoms,
       })
       const data = resp?.data?.data

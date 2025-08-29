@@ -1,7 +1,9 @@
 import axios from "axios";
 import { getAccessToken, getRefreshToken, updateTokens, clearAuth } from "@/lib/auth";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const rawBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+// Ensure we always target the versioned API prefix
+const apiBaseUrl = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase.replace(/\/$/, "")}/api/v1`;
 
 export const api = axios.create({
 	baseURL: apiBaseUrl,
@@ -45,7 +47,7 @@ api.interceptors.response.use(
 			try {
 				const refreshToken = getRefreshToken();
 				if (!refreshToken) throw error;
-				const resp = await axios.post(`${apiBaseUrl}/api/v1/users/refresh-token`, {
+				const resp = await axios.post(`${apiBaseUrl}/users/refresh-token`, {
 					refreshToken,
 				}, { withCredentials: false });
 				const newAccess = resp?.data?.data?.accessToken;
