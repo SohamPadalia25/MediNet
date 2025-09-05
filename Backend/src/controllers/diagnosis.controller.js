@@ -37,6 +37,30 @@ export const analyzeSymptoms1 = asyncHandler(async (req, res) => {
     }
 });
 
+// Disease prediction (new ML microservice at 5002)
+export const predictDisease = asyncHandler(async (req, res) => {
+    const { symptoms } = req.body;
+
+    if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
+        throw new ApiError(400, "Symptoms are required and must be a non-empty array");
+    }
+
+    try {
+        const response = await axios.post(
+            'http://localhost:5002/predict',
+            { symptoms },
+            { timeout: 15000 }
+        );
+
+        return res.status(200).json(
+            new ApiResponse(200, response.data, "Disease prediction completed successfully")
+        );
+    } catch (error) {
+        const message = error.response?.data?.error || error.message || 'Disease prediction service unavailable';
+        throw new ApiError(503, `Disease prediction failed: ${message}`);
+    }
+});
+
 // NEW: Chest X-ray analysis
 export const analyzeChestXray = asyncHandler(async (req, res) => {
     try {

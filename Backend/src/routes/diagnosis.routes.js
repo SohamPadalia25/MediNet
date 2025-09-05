@@ -36,7 +36,8 @@ import {
     analyzeSymptoms1,
     analyzeChestXray,
     createComprehensiveDiagnosis,
-    checkMLServicesHealth
+    checkMLServicesHealth,
+    predictDisease
 } from "../controllers/diagnosis.controller.js";
 //import { upload } from "../middlewares/multer.middleware.js";
 //import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -51,6 +52,14 @@ router.post(
     "/analyze-symptoms",
     verifyJWT,
     analyzeSymptoms1
+);
+
+// New disease prediction (rule-based input to ML SVC)
+router.post(
+    "/predict-disease",
+    verifyJWT,
+    requireRole(['doctor']),
+    predictDisease
 );
 
 // Chest X-ray analysis
